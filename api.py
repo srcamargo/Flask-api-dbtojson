@@ -1,9 +1,70 @@
-from flask import Flask, g, render_template,send_file, request, make_response, session, Response
-import sqlite3
+from flask import Flask, g, render_template,send_file, request, make_response, session, Response, jsonify
+from sqlite3 import dbapi2 as sqlite3 #import sqlite3
+DATABASE = 'customersdb.db'
 
-conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
+#conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
 app = Flask(__name__)
 app.secret_key = 'You Will Never Guess'
+
+def get_db():
+	db = getattr(g, '_database', None)
+	if db is None:
+		db = g._database = sqlite3.connect(DATABASE)
+		db.row_factory = sqlite3.Row
+	return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+	db = getattr(g, '_database', None)
+	if db is not None: db.close()
+
+def query_db(query, args=(), one=False):
+	cur = get_db().execute(query, args)
+	rv = cur.fetchall()
+	cur.close()
+	return (rv[0] if rv else None) if one else rv
+
+def init_db():
+	with app.app_context():
+		db = get_db()
+		with app.open_resource('schema.sql', mode='r') as f:
+			db.cursor().executescript(f.read())
+		db.commit()
+
+def find_id(ID=''):
+	sql = "select * from customers where ID = '%s' limit 1" %(ID)
+	#print(sql)
+	db = get_db()
+	rv = db.execute(sql)
+	res = rv.fetchall()
+	rv.close()
+	return res[0]
+
+def add_customer(ID='', nome='', balance=''):
+	sql = "INSERT INTO customers (ID, nome, balance) VALUES('%s', '%s', %s)" %(ID, nome, balance)
+	print(sql)
+	db = get_db()
+	db.execute(sql)
+	res = db.commit()
+	return res
+
+@app.route("/json", methods=["POST"])
+def json_example():
+
+    if request.is_json:
+        req = request.get_json()
+        customer = find_id(req.get("ID"))
+
+        response_body = {
+            "message": "JSON received with ID POST ok!",
+            "ID": customer['ID'],
+            "name": customer['nome'],
+            "balance":customer['balance']
+        }
+        res = make_response(jsonify(response_body), 200)
+        return res
+    else:
+        return make_response(jsonify({"message": "Request body must be JSON"}), 400)
 
 @app.route('/')
 def home():
@@ -30,19 +91,9 @@ def addrec():
          ID = request.form.get('ID')
          nome = request.form.get('nome')
          balance = request.form.get('balance')
-      #try:
-         #ID = request.form['ID']
-         #Name = request.form['nome']
-         #Balance = request.form['balance']
+         add_customer(ID,nome,balance)
+         msg = "Record successfully added"
 
-         print(ID+' '+nome+' '+balance);
-         #conn = sqlite3.connect('database.db')
-         with sqlite3.connect("customersdb.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO customers VALUES (?,?,?)",(ID, nome, balance))
-            #cursor.execute("INSERT INTO customers VALUES ('1001', 'Juca Jones', '10000')")
-            conn.commit()
-            msg = "Record successfully added"
       except:
          conn.rollback()
          msg = "error in insert operation"
@@ -54,9 +105,8 @@ def addrec():
 
 @app.route('/createdatabases/')
 def createdatabases():
-    #import sqlite3
-    conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
 
+    conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
     cursor = conn.cursor()
 
     # cria uma tabela
@@ -71,7 +121,7 @@ def createdatabases():
     cursor.executemany("INSERT INTO customers VALUES (?,?,?)", customers)
     conn.commit()
 
-    return conn #render_template('index.html',asset=session['asset'])
+    return "Database has been created"
 
 @app.after_request
 def add_header(r):
