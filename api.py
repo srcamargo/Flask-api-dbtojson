@@ -1,10 +1,9 @@
 from flask import Flask, g, render_template,send_file, request, make_response, session, Response, jsonify
 from sqlite3 import dbapi2 as sqlite3 #import sqlite3
-DATABASE = 'customersdb.db'
+DATABASE = 'toptraderdb.db'
 
-#conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
 app = Flask(__name__)
-app.secret_key = 'You Will Never Guess'
+app.secret_key = 'You Will Never Guess '
 
 def get_db():
 	db = getattr(g, '_database', None)
@@ -32,7 +31,7 @@ def init_db():
 		db.commit()
 
 def find_id(ID=''):
-	sql = "select * from customers where ID = '%s' limit 1" %(ID)
+	sql = "select * from tb_customers where CUSTOMERS_ID = '%s' limit 1" %(ID)
 	#print(sql)
 	db = get_db()
 	rv = db.execute(sql)
@@ -41,7 +40,7 @@ def find_id(ID=''):
 	return res[0]
 
 def add_customer(ID='', nome='', balance=''):
-	sql = "INSERT INTO customers (ID, nome, balance) VALUES('%s', '%s', %s)" %(ID, nome, balance)
+	sql = "INSERT INTO tb_customers (CUSTOMERS_ID, CUSTOMERS_NAME, CUSTOMERS_BALANCE) VALUES('%s', '%s', %s)" %(ID, nome, balance)
 	print(sql)
 	db = get_db()
 	db.execute(sql)
@@ -53,13 +52,13 @@ def json_example():
 
     if request.is_json:
         req = request.get_json()
-        customer = find_id(req.get("ID"))
+        customer = find_id(req.get("CUSTOMERS_ID"))
 
         response_body = {
             "message": "JSON received with ID POST ok!",
-            "ID": customer['ID'],
-            "name": customer['nome'],
-            "balance":customer['balance']
+            "CUSTOMERS_ID": customer['CUSTOMERS_ID'],
+            "CUSTOMERS_NAME": customer['CUSTOMERS_NAME'],
+            "CUSTOMERS_BALANCE":customer['CUSTOMERS_BALANCE']
         }
         res = make_response(jsonify(response_body), 200)
         return res
@@ -70,16 +69,16 @@ def json_example():
 def home():
    return render_template('index.html')
 
-@app.route('/enternew')
+@app.route('/newcustomer')
 def new_register():
     return render_template('customer.html')
 
 @app.route('/list')
 def list():
-   conn = sqlite3.connect("customersdb.db")
+   conn = sqlite3.connect("toptraderdb.db")
    conn.row_factory = sqlite3.Row
    cur = conn.cursor()
-   cur.execute("select * from customers")
+   cur.execute("select * from tb_customers")
 
    rows = cur.fetchall();
    return render_template("list.html",rows = rows)
@@ -106,19 +105,19 @@ def addrec():
 @app.route('/createdatabases/')
 def createdatabases():
 
-    conn = sqlite3.connect("customersdb.db") # ou use :memory: para colocar na memória RAM
+    conn = sqlite3.connect("toptraderdb.db") # ou use :memory: para colocar na memória RAM
     cursor = conn.cursor()
 
     # cria uma tabela
-    cursor.execute("""CREATE TABLE customers
-                    (ID text, nome text, balance text)
+    cursor.execute("""CREATE TABLE tb_customers
+                    (CUSTOMERS_ID text, CUSTOMERS_NAME text, CUSTOMERS_BALANCE text)
                     """)
     conn.commit()
 
     customers = [('1002', 'John Lennon', '20000'),
              ('1003', 'Paul Mcartney', '30000'),
              ('1004', 'Ringo Star', '40000')]
-    cursor.executemany("INSERT INTO customers VALUES (?,?,?)", customers)
+    cursor.executemany("INSERT INTO tb_customers VALUES (?,?,?)", customers)
     conn.commit()
 
     return "Database has been created"
